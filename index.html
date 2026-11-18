@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CALDERA BAY — Heat on the Black Sand</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #14100d; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; }
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 10; }
+  .panel { background: rgba(10, 10, 12, 0.62); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; backdrop-filter: blur(2px); }
+  /* Top-left: mission */
+  #mission-panel { position: absolute; top: 14px; left: 14px; padding: 10px 14px; max-width: 340px; }
+  #mission-chapter { font-size: 11px; letter-spacing: 2px; color: #ffd700; font-weight: 700; }
+  #mission-title { font-size: 19px; font-weight: 800; letter-spacing: 0.5px; }
+  #mission-objective { font-size: 13px; color: #e8e8e8; margin-top: 3px; }
+  #mission-stage { font-size: 11px; color: #aaa; margin-top: 4px; }
+  #mission-timer { font-size: 16px; font-weight: 800; color: #ffd700; margin-top: 2px; }
+  /* Top-right: wanted + cash + clock */
+  #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
+  #wanted-stars { font-size: 26px; letter-spacing: 3px; text-shadow: 0 2px 6px #000; }
+  #wanted-stars .star { color: rgba(255,255,255,0.25); }
+  #wanted-stars .star.on { color: #ffd700; }
+  #wanted-label { font-size: 11px; letter-spacing: 2px; color: #ffcc00; font-weight: 700; height: 14px; }
+  #cash { font-size: 26px; font-weight: 800; color: #7cff00; text-shadow: 0 2px 6px #000; }
+  #clock { font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 2px 6px #000; }
+  #tape-count { font-size: 11px; color: #ff8ac2; font-weight: 700; }
+  #respect-bar { width: 130px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 4px 0 0 auto; overflow: hidden; }
+  #respect-fill { height: 100%; width: 0%; background: #ff2e88; }
+  #respect-label { font-size: 10px; letter-spacing: 2px; color: #ccc; }
+  /* Police list */
+  #police-list { position: absolute; top: 150px; right: 14px; padding: 8px 10px; min-width: 230px; font-size: 12px; }
+  .police-title { font-size: 11px; letter-spacing: 2px; color: #ff6b6b; font-weight: 800; margin-bottom: 4px; }
+  .police-unit { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+  /* Bottom-left: minimap + health */
+  #bottom-left { position: absolute; left: 14px; bottom: 14px; }
+  #minimap { width: 190px; height: 190px; border-radius: 50%; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
+  #health-bar { width: 190px; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; margin-top: 8px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #7cff00; }
+  #car-health { width: 190px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; margin-top: 4px; overflow: hidden; }
+  #car-health-fill { height: 100%; width: 100%; background: #00e5ff; }
+  /* Bottom-right: speedo + weapons + radio */
+  #bottom-right { position: absolute; right: 14px; bottom: 14px; text-align: right; }
+  #radio-track { font-size: 12px; color: #00e5ff; font-weight: 700; margin-bottom: 6px; text-shadow: 0 1px 4px #000; }
+  #weapon-bar { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
+  .weapon-slot { padding: 5px 9px; background: rgba(10,10,12,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-size: 11px; }
+  .weapon-slot b { display: block; font-size: 12px; }
+  .weapon-slot.current { border-color: #ffd700; background: rgba(60,50,0,0.7); }
+  #speedo { font-size: 46px; font-weight: 900; line-height: 1; text-shadow: 0 3px 10px #000; }
+  #speed-unit { font-size: 12px; letter-spacing: 3px; color: #ddd; }
+  /* Dialogue */
+  #dialogue-box { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); width: 560px; max-width: 80vw; padding: 12px 16px 12px 70px; display: none; }
+  #dialogue-portrait { position: absolute; left: 12px; top: 12px; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; }
+  #dialogue-speaker { font-size: 12px; letter-spacing: 2px; font-weight: 800; }
+  #dialogue-text { font-size: 15px; margin-top: 2px; }
+  /* Flash / chapter / job cards */
+  #flash { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); font-size: 30px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 3px 12px #000; opacity: 0; transition: opacity 0.4s; text-align: center; }
+  #chapter-card { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 0.6s; text-shadow: 0 3px 14px #000; }
+  #chapter-title { font-size: 15px; letter-spacing: 6px; color: #ffd700; font-weight: 800; }
+  #chapter-name { font-size: 44px; font-weight: 900; letter-spacing: 1px; }
+  #job-complete { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 0.6s; text-shadow: 0 3px 14px #000; }
+  #job-title { font-size: 34px; font-weight: 900; color: #7cff00; }
+  #job-payout { font-size: 20px; font-weight: 800; }
+  #objective-toast { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); padding: 8px 18px; font-size: 15px; font-weight: 700; opacity: 0; transition: opacity 0.5s; }
+  /* District banner */
+  #district-banner { position: absolute; left: 14px; bottom: 250px; opacity: 0; transition: opacity 0.6s; text-shadow: 0 2px 10px #000; }
+  #district-name { font-size: 30px; font-weight: 900; letter-spacing: 1px; }
+  #district-blurb { font-size: 13px; color: #ddd; }
+  /* Race panel */
+  #race-panel { position: absolute; top: 150px; left: 14px; padding: 10px 14px; display: none; }
+  #race-name { font-size: 13px; letter-spacing: 2px; color: #00e5ff; font-weight: 800; }
+  #race-position { font-size: 30px; font-weight: 900; }
+  #race-lap { font-size: 12px; color: #ccc; }
+  /* Crosshair + vignette */
+  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 22px; color: rgba(255,255,255,0.85); text-shadow: 0 0 6px #000; display: none; }
+  #damage-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.55) 100%); opacity: 0; pointer-events: none; }
+  /* Shop overlay */
+  #shop-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.72); display: none; pointer-events: auto; z-index: 20; }
+  #shop-box { width: 520px; margin: 8% auto; padding: 22px; }
+  #shop-box h2 { font-size: 24px; margin-bottom: 4px; }
+  #shop-box p { font-size: 13px; color: #ccc; margin-bottom: 14px; }
+  .shop-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.12); font-size: 14px; }
+  .shop-row button, .btn { pointer-events: auto; cursor: pointer; background: #ffd700; color: #111; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 800; font-size: 13px; }
+  .shop-row button:hover, .btn:hover { background: #ffe866; }
+  /* Title screen */
+  #title-screen { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(20,10,0,0.55), rgba(20,10,0,0.25) 45%, rgba(10,5,0,0.75)); text-align: center; }
+  #title-logo { font-size: 84px; font-weight: 900; letter-spacing: 4px; line-height: 0.95; text-shadow: 0 6px 30px rgba(0,0,0,0.8); }
+  #title-logo span { color: #ff2e88; }
+  #title-sub { font-size: 19px; letter-spacing: 6px; color: #ffd700; font-weight: 700; margin: 8px 0 26px; }
+  #title-tag { font-size: 14px; color: #ddd; max-width: 560px; margin-bottom: 28px; line-height: 1.5; }
+  .title-btn { display: block; width: 300px; margin: 7px auto; padding: 13px; font-size: 16px; font-weight: 800; letter-spacing: 1px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; }
+  .title-btn:hover { background: #ffd700; color: #111; border-color: #ffd700; }
+  #title-foot { margin-top: 26px; font-size: 12px; color: #bbb; }
+  #help-overlay { display: none; margin-top: 18px; padding: 14px 20px; text-align: left; font-size: 13px; max-width: 520px; }
+  #controls-list div { display: flex; justify-content: space-between; gap: 30px; padding: 2px 0; }
+  /* Death screen */
+  #death-screen { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(60,0,0,0.55); text-align: center; }
+  #death-title { font-size: 96px; font-weight: 900; letter-spacing: 8px; color: #ff4444; text-shadow: 0 6px 30px #000; }
+  #death-sub { font-size: 16px; color: #eee; margin-top: 10px; }
+  /* Pause screen */
+  #pause-screen { position: fixed; inset: 0; z-index: 25; display: none; background: rgba(8,8,10,0.88); padding: 30px; gap: 28px; align-items: flex-start; justify-content: center; pointer-events: auto; }
+  #pause-left { text-align: center; }
+  #pause-left h2 { font-size: 26px; letter-spacing: 3px; margin-bottom: 10px; }
+  #pause-map { width: 560px; height: 560px; max-width: 58vh; max-height: 58vh; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; }
+  #pause-right { width: 340px; padding-top: 8px; }
+  #pause-right h3 { font-size: 15px; letter-spacing: 2px; color: #ffd700; margin: 16px 0 8px; }
+  .stat-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  #complete-bar { height: 10px; background: rgba(255,255,255,0.15); border-radius: 5px; overflow: hidden; margin-top: 6px; }
+  #complete-fill { height: 100%; width: 0%; background: #7cff00; }
+  .mission-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #bbb; }
+  .mission-row.done { color: #7cff00; }
+  .mission-row.current { color: #ffd700; font-weight: 700; }
+  #pause-buttons { margin-top: 20px; display: flex; gap: 10px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div id="hud">
+  <div id="damage-vignette"></div>
+  <div id="mission-panel" class="panel" style="display:none">
+    <div id="mission-chapter"></div>
+    <div id="mission-title"></div>
+    <div id="mission-objective"></div>
+    <div id="mission-stage"></div>
+    <div id="mission-timer"></div>
+  </div>
+  <div id="top-right">
+    <div id="wanted-stars"></div>
+    <div id="wanted-label"></div>
+    <div id="cash">$250</div>
+    <div id="clock">17:24</div>
+    <div id="tape-count">TAPES 0/20</div>
+    <div id="respect-label">RESPECT</div>
+    <div id="respect-bar"><div id="respect-fill"></div></div>
+  </div>
+  <div id="police-list" class="panel" style="display:none"></div>
+  <div id="race-panel" class="panel">
+    <div id="race-name"></div>
+    <div id="race-position"></div>
+    <div id="race-lap"></div>
+  </div>
+  <div id="bottom-left">
+    <canvas id="minimap"></canvas>
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <div id="car-health" style="display:none"><div id="car-health-fill"></div></div>
+  </div>
+  <div id="bottom-right">
+    <div id="radio-track">RADIO OFF (Q)</div>
+    <div id="weapon-bar"></div>
+    <div id="speedo">0</div>
+    <div id="speed-unit">KM/H</div>
+  </div>
+  <div id="dialogue-box" class="panel">
+    <div id="dialogue-portrait"></div>
+    <div id="dialogue-speaker"></div>
+    <div id="dialogue-text"></div>
+  </div>
+  <div id="flash"></div>
+  <div id="chapter-card"><div id="chapter-title"></div><div id="chapter-name"></div></div>
+  <div id="job-complete"><div id="job-title"></div><div id="job-payout"></div></div>
+  <div id="objective-toast" class="panel"></div>
+  <div id="district-banner"><div id="district-name"></div><div id="district-blurb"></div></div>
+  <div id="crosshair">＋</div>
+  <div id="shop-overlay">
+    <div id="shop-box" class="panel">
+      <h2>IRONWORKS ARMS</h2>
+      <p>Foundry Row — cash only, no questions. Press E or Esc to close.</p>
+      <div id="shop-items"></div>
+      <div style="margin-top:16px"><button class="btn" id="shop-close">CLOSE</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="title-screen">
+  <div id="title-logo">CALDERA<span>BAY</span></div>
+  <div id="title-sub">HEAT ON THE BLACK SAND</div>
+  <div id="title-tag">An open-world crime story on a volcanic island: eight jobs, five stars of heat, street races, taxi fares and twenty Sunset Tapes — all yours for the taking.</div>
+  <button class="title-btn" id="btn-start">▶ START STORY</button>
+  <button class="title-btn" id="btn-continue" style="display:none">↻ CONTINUE</button>
+  <button class="title-btn" id="btn-help">? HOW TO PLAY</button>
+  <div id="help-overlay" class="panel"><div id="controls-list"></div></div>
+  <div id="title-foot">WASD move &amp; drive · E enter car / interact · Mouse look · Click shoot · M mission · Esc map</div>
+</div>
+
+<div id="death-screen"><div id="death-title">WASTED</div><div id="death-sub"></div></div>
+
+<div id="pause-screen">
+  <div id="pause-left">
+    <h2>CALDERA BAY — MAP</h2>
+    <canvas id="pause-map"></canvas>
+  </div>
+  <div id="pause-right">
+    <h3>PROGRESS — <span id="stat-complete">0%</span></h3>
+    <div id="complete-bar"><div id="complete-fill"></div></div>
+    <h3>STATS</h3>
+    <div class="stat-row"><span>Cash</span><span id="stat-cash">$0</span></div>
+    <div class="stat-row"><span>Story missions</span><span id="stat-missions">0/8</span></div>
+    <div class="stat-row"><span>Sunset Tapes</span><span id="stat-tapes">0/20</span></div>
+    <div class="stat-row"><span>Races won</span><span id="stat-races">0/3</span></div>
+    <div class="stat-row"><span>Takedowns</span><span id="stat-kills">0</span></div>
+    <h3>STORY</h3>
+    <div id="mission-list"></div>
+    <div id="pause-buttons">
+      <button class="btn" id="btn-resume">RESUME (Esc)</button>
+      <button class="btn" id="btn-save">SAVE GAME</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
