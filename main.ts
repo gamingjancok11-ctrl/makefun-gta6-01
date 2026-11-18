@@ -30,6 +30,55 @@ for (const f of shotFiles) {
   }
 }
 
+// Game integrity: the competition caps game/index.html at 1 MiB and the
+// game/ tree at 993 files+dirs, so check both BEFORE copying — a missing or
+// oversized entry fails fast here instead of leaving a partial /output behind.
+const gameDir = join(repoRoot, 'game');
+const indexPath = join(gameDir, 'index.html');
+if (!existsSync(indexPath)) {
+  throw new Error('game/index.html is missing');
+}
+const indexBytes = statSync(indexPath).size;
+if (indexBytes > 1048576) {
+  throw new Error(`game/index.html is ${indexBytes} bytes, over the 1 MiB cap`);
+}
+let gameEntries = 0;
+const countEntries = (dir: string) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    gameEntries++;
+    if (entry.isDirectory()) countEntries(join(dir, entry.name));
+  }
+};
+countEntries(gameDir);
+if (gameEntries > 993) {
+  throw new Error(`game/ holds ${gameEntries} files+dirs, over the 993 cap`);
+}
+
+// Repo identity: the intake refuses an entry whose root LICENSE lacks an
+// OSI-approved SPDX identifier, and a missing or wallet-less .makefun/
+// owner.json leaves the entry unclaimed — check both BEFORE copying, so a
+// broken handoff fails fast here instead of at submission time.
+const licensePath = join(repoRoot, 'LICENSE');
+if (!existsSync(licensePath)) {
+  throw new Error('LICENSE is missing from the repository root');
+}
+if (!/SPDX-License-Identifier:\s*\S+/.test(readFileSync(licensePath, 'utf8'))) {
+  throw new Error('LICENSE does not declare an SPDX-License-Identifier line');
+}
+const ownerPath = join(repoRoot, '.makefun', 'owner.json');
+if (!existsSync(ownerPath)) {
+  throw new Error('.makefun/owner.json is missing');
+}
+let owner;
+try {
+  owner = JSON.parse(readFileSync(ownerPath, 'utf8'));
+} catch (err) {
+  throw new Error(`.makefun/owner.json does not parse: ${(err as Error).message}`);
+}
+if (typeof owner.wallet !== 'string' || owner.wallet.trim() === '') {
+  throw new Error('.makefun/owner.json has no non-empty wallet field');
+}
+
 mkdirSync(outDir, { recursive: true });
 cpSync(join(repoRoot, 'game'), join(outDir, 'game'), { recursive: true });
 mkdirSync(join(outDir, 'screenshots'), { recursive: true });
